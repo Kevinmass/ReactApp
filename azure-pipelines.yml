@@ -1,0 +1,212 @@
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - README.md
+      - decisiones.md
+
+pr:
+  branches:
+    include:
+      - main
+  paths:
+    exclude:
+      - README.md
+      - decisiones.md
+
+stages:
+  # STAGE 1: BUILD & TEST
+  - stage: Build
+    displayName: 'Build Application'
+    jobs:
+      - job: Build
+        displayName: 'Build Application'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+          # Checkout code
+          - checkout: self
+
+          # Setup Node.js 22 LTS with npm cache
+          - task: UseNode@1
+            inputs:
+              version: '22.x'
+              checkLatest: true
+            displayName: 'Setup Node.js 22 LTS'
+
+          # Install root dependencies
+          - script: npm ci
+            displayName: 'Install root dependencies'
+
+          # Run tests
+          - script: npm test
+            displayName: 'Run tests'
+
+          # Build frontend
+          - script: |
+              echo "Building React frontend..."
+              cd frontend
+              npm ci
+              npm run build
+              echo "Frontend build completed"
+            displayName: 'Build frontend'
+
+          # Build application (placeholder)
+          - script: |
+              echo "Building application for Azure deployment..."
+              echo "Build completed at $(date)"
+            displayName: 'Build application'
+
+          # Copy artifacts to staging
+          - task: CopyFiles@2
+            inputs:
+              SourceFolder: '.'
+              Contents: |
+                backend/**/*
+                frontend/build/**/*
+                package*.json
+                web.config
+              TargetFolder: '$(Build.ArtifactStagingDirectory)'
+            displayName: 'Copy files to artifact staging'
+
+          # Publish artifacts
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+              ArtifactName: 'node-app'
+              publishLocation: 'Container'
+            displayName: 'Publish build artifacts'
+
+  # STAGE 2: DEPLOY TO QA (AUTOMATIC)
+  - stage: DeployQA
+    displayName: 'Deploy to QA Environment'
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - deployment: DeployQA
+        displayName: 'Deploy to QA'
+        environment: 'qa'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # Download build artifacts
+                - task: DownloadBuildArtifacts@1
+                  inputs:
+                    downloadType: 'single'
+                    artifactName: 'node-app'
+                    downloadPath: '$(Agent.TempDirectory)/artifacts'
+                  displayName: 'Download build artifacts'
+
+                # Copy artifacts to release directory
+                - script: |
+                    mkdir -p $(System.DefaultWorkingDirectory)
+                    cp -r $(Agent.TempDirectory)/artifacts/node-app/* $(System.DefaultWorkingDirectory)/
+                  displayName: 'Extract artifacts'
+
+                # Install production dependencies
+                - script: npm ci --omit=dev
+                  displayName: 'Install production dependencies'
+
+                # Deploy to Azure Web App QA
+                - task: AzureWebApp@1
+                  inputs:
+                    azureSubscription: 'azure-tp05-connection'
+                    appType: 'webApp'
+                    appName: 'tp05-app-qa-KevinOctavio'
+                    package: '$(System.DefaultWorkingDirectory)'
+                    deploymentMethod: 'zipDeploy'
+                  displayName: 'Deploy to Azure Web App QA'
+
+                # Wait for deployment
+                - bash: sleep 120
+                  displayName: 'Wait for deployment'
+
+                # QA Health Check
+                - script: |
+                    echo "Running QA health check..."
+                    for i in {1..15}; do
+                      response=$(curl -s --connect-timeout 10 --max-time 30 -o /dev/null -w "%{http_code}" https://tp05-app-qa-kevinoctavio-b3daehhuhyfvhdbr.southafricanorth-01.azurewebsites.net/api/health)
+                      if [ $response -eq 200 ]; then
+                        echo "QA Health check passed!"
+                        exit 0
+                      fi
+                      echo "Attempt $i: status $response, retrying..."
+                      sleep 20
+                    done
+                    echo "QA Health check failed after 15 attempts"
+                    exit 1
+                  displayName: 'QA Health Check'
+                  failOnStderr: true
+
+  # STAGE 3: DEPLOY TO PRODUCTION (MANUAL)
+  - stage: DeployProduction
+    displayName: 'Deploy to Production Environment'
+    dependsOn:
+      - Build
+      - DeployQA
+    condition: |
+      and(
+        succeeded('DeployQA'),
+        succeeded('Build')
+      )
+    jobs:
+      - deployment: DeployProduction
+        displayName: 'Deploy to Production'
+        environment: 'production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # Download build artifacts
+                - task: DownloadBuildArtifacts@1
+                  inputs:
+                    downloadType: 'single'
+                    artifactName: 'node-app'
+                    downloadPath: '$(Agent.TempDirectory)/artifacts'
+                  displayName: 'Download build artifacts'
+
+                # Copy artifacts to release directory
+                - script: |
+                    mkdir -p $(System.DefaultWorkingDirectory)
+                    cp -r $(Agent.TempDirectory)/artifacts/node-app/* $(System.DefaultWorkingDirectory)/
+                  displayName: 'Extract artifacts'
+
+                # Install production dependencies
+                - script: npm ci --omit=dev
+                  displayName: 'Install production dependencies'
+
+                # Deploy to Azure Web App Production
+                - task: AzureWebApp@1
+                  inputs:
+                    azureSubscription: 'azure-tp05-connection'
+                    appType: 'webApp'
+                    appName: 'tp05-app-prod-KevinOctavio'
+                    package: '$(System.DefaultWorkingDirectory)'
+                    deploymentMethod: 'zipDeploy'
+                  displayName: 'Deploy to Azure Web App Production'
+
+                # Wait for deployment
+                - bash: sleep 120
+                  displayName: 'Wait for deployment'
+
+                # Production Health Check
+                - script: |
+                    echo "Running PRODUCTION health check..."
+                    for i in {1..15}; do
+                      response=$(curl -s --connect-timeout 10 --max-time 30 -o /dev/null -w "%{http_code}" https://tp05-app-prod-kevinoctavio-bdg8dnc9bucuf4de.southafricanorth-01.azurewebsites.net/api/health)
+                      if [ $response -eq 200 ]; then
+                        echo "PRODUCTION Health check passed!"
+                        echo "Application successfully deployed to production!"
+                        exit 0
+                      fi
+                      echo "Attempt $i: status $response, retrying..."
+                      sleep 20
+                    done
+                    echo "PRODUCTION Health check failed after 15 attempts"
+                    exit 1
+                  displayName: 'Production Health Check'
+                  failOnStderr: true
