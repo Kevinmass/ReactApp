@@ -47,7 +47,14 @@ try {
     };
 }
 
-// Health Check Endpoint (CRÍTICO)
+/**
+ * Endpoint de verificación de salud del servidor.
+ * Proporciona información sobre el estado del servidor, entorno, base de datos y tiempo de actividad.
+ *
+ * @param {Object} req - Objeto de solicitud de Express.
+ * @param {Object} res - Objeto de respuesta de Express.
+ * @returns {Object} JSON con el estado del servidor.
+ */
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'OK',
@@ -58,7 +65,14 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Info Endpoint
+/**
+ * Endpoint de información de la aplicación.
+ * Proporciona detalles sobre la aplicación, versión, entorno y autores.
+ *
+ * @param {Object} req - Objeto de solicitud de Express.
+ * @param {Object} res - Objeto de respuesta de Express.
+ * @returns {Object} JSON con información de la aplicación.
+ */
 app.get('/api/info', (req, res) => {
     res.json({
         app: 'TP05 CI/CD Pipeline',
@@ -68,7 +82,14 @@ app.get('/api/info', (req, res) => {
     });
 });
 
-// Endpoint de diagnóstico para validar contenido de la "BD"
+/**
+ * Endpoint de diagnóstico para la base de datos.
+ * Devuelve la ruta del archivo de base de datos y la lista de usuarios actuales.
+ *
+ * @param {Object} req - Objeto de solicitud de Express.
+ * @param {Object} res - Objeto de respuesta de Express.
+ * @returns {Object} JSON con la ruta del archivo y los usuarios.
+ */
 app.get('/api/debug/db', (req, res) => {
   res.json({
     filePath: dbFilePath,
@@ -76,7 +97,14 @@ app.get('/api/debug/db', (req, res) => {
   });
 });
 
-// Usuarios (en memoria)
+/**
+ * Endpoint para obtener la lista de usuarios.
+ * Lee los usuarios desde el archivo de base de datos y los normaliza.
+ *
+ * @param {Object} req - Objeto de solicitud de Express.
+ * @param {Object} res - Objeto de respuesta de Express.
+ * @returns {Array} JSON con la lista de usuarios normalizados.
+ */
 app.get('/api/users', (req, res) => {
     let sourceUsers = dbData.users;
     try {
@@ -100,6 +128,14 @@ app.get('/api/users', (req, res) => {
     res.json(normalizedUsers);
 });
 
+/**
+ * Endpoint para crear un nuevo usuario.
+ * Agrega un usuario a la lista en memoria con un ID único.
+ *
+ * @param {Object} req - Objeto de solicitud de Express. Espera { name: string, role: string } en el body.
+ * @param {Object} res - Objeto de respuesta de Express.
+ * @returns {Object} JSON con el nuevo usuario creado.
+ */
 app.post('/api/users', (req, res) => {
     const newId = dbData.users.length > 0 ? Math.max(...dbData.users.map(u => u.id)) + 1 : 1;
     const newUser = {
@@ -111,6 +147,14 @@ app.post('/api/users', (req, res) => {
     res.status(201).json(newUser);
 });
 
+/**
+ * Endpoint para eliminar un usuario por ID.
+ * Busca y elimina el usuario de la lista en memoria.
+ *
+ * @param {Object} req - Objeto de solicitud de Express. Parámetro :id en la URL.
+ * @param {Object} res - Objeto de respuesta de Express.
+ * @returns {void} Respuesta 204 si se elimina, 404 si no se encuentra.
+ */
 app.delete('/api/users/:id', (req, res) => {
     const { id } = req.params;
     const numId = parseInt(id, 10);

@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import './App.css';
 
+/**
+ * Componente principal de la aplicación React.
+ * Gestiona el estado de usuarios, salud del servidor y errores.
+ * Permite crear y eliminar usuarios a través de la interfaz.
+ *
+ * @returns {JSX.Element} El componente renderizado.
+ */
 function App() {
   const [users, setUsers] = useState([]);
   const [health, setHealth] = useState(null);
@@ -9,6 +16,13 @@ function App() {
   const [newUserRole, setNewUserRole] = useState('user');
 
   useEffect(() => {
+    /**
+     * Función asíncrona para obtener el estado de salud del servidor.
+     * Realiza una petición GET a /api/health y actualiza el estado.
+     *
+     * Entrada: Ninguna.
+     * Salida: Actualiza el estado 'health' o 'error'.
+     */
     const fetchHealth = async () => {
       try {
         const res = await fetch('/api/health');
@@ -20,6 +34,13 @@ function App() {
       }
     };
 
+    /**
+     * Función asíncrona para obtener la lista de usuarios del servidor.
+     * Realiza una petición GET a /api/users y actualiza el estado.
+     *
+     * Entrada: Ninguna.
+     * Salida: Actualiza el estado 'users' o 'error'.
+     */
     const fetchUsers = async () => {
       try {
         const res = await fetch('/api/users');
@@ -35,6 +56,14 @@ function App() {
     fetchUsers();
   }, []);
 
+  /**
+   * Función asíncrona para crear un nuevo usuario.
+   * Envía una petición POST a /api/users con el nombre y rol del nuevo usuario.
+   * Actualiza la lista de usuarios y limpia los campos de entrada.
+   *
+   * Entrada: Utiliza los estados newUserName y newUserRole.
+   * Salida: Actualiza el estado 'users', limpia newUserName y newUserRole, o establece 'error'.
+   */
   const handleCreateUser = async () => {
     if (!newUserName.trim()) return;
     try {
@@ -53,6 +82,14 @@ function App() {
     }
   };
 
+  /**
+   * Función asíncrona para eliminar un usuario por ID.
+   * Envía una petición DELETE a /api/users/:id y actualiza la lista de usuarios.
+   *
+   * @param {number} id - ID del usuario a eliminar.
+   * Entrada: ID del usuario.
+   * Salida: Actualiza el estado 'users' o establece 'error'.
+   */
   const handleDeleteUser = async (id) => {
     try {
       const res = await fetch(`/api/users/${id}`, { method: 'DELETE' });
